@@ -47,6 +47,8 @@ Only after saving the initial `.sm` file with the correct tempo can we launch au
 
 ## ⚙️ Environment Preparation
 
+> **Running on WSL (Windows Subsystem for Linux)?** See the [WSL Setup](#-wsl-setup) section below.
+
 These actions need to be performed **only the first time**.
 
 First install arrowvortex and ffmpeg (by adding it to your Windows Environment Variables/PATH), then do the following:
@@ -56,6 +58,48 @@ First install arrowvortex and ffmpeg (by adding it to your Windows Environment V
 3. Open the `path.txt` file in the project folder.
 4. Save the path to the ArrowVortex executable installed on your PC.
 * *Example: * `C:\ArrowVortex\ArrowVortex.exe`
+
+---
+
+## 🐧 WSL Setup
+
+This fork runs natively on **WSL (Windows Subsystem for Linux)**. The ArrowVortex dependency has been removed — you provide the pre-timed `.sm` file yourself.
+
+### One-time setup
+
+```bash
+# Install system dependencies
+sudo apt install python3.12-venv ffmpeg
+
+# Clone and enter the project
+git clone https://github.com/zachmichael/StepGenerator
+cd StepGenerator
+
+# Create the virtual environment and install Python dependencies
+./setup_venv.sh
+```
+
+### Running the tool
+
+```bash
+./menu.sh
+```
+
+That's it. The script activates the virtual environment automatically. You can run it from any directory — it always operates relative to the project root.
+
+### WSL workflow
+
+Instead of ArrowVortex generating the `.sm` timing file, you provide it yourself:
+
+1. **Prepare your song folder** inside `songs/`, following this structure:
+   ```
+   songs/
+   └── Song Title - Artist Name/
+       ├── Song Title - Artist Name.mp3
+       └── Song Title - Artist Name.sm   ← you provide this
+   ```
+2. The `.sm` file needs valid `#BPMS` and `#OFFSET` tags set. Any tool that produces a StepMania-compatible `.sm` with correct timing will work (ArrowVortex on Windows, Stepmania's built-in editor, etc.).
+3. Run `./menu.sh` → **option 1**, select your file, and the full pipeline runs automatically.
 
 ---
 
@@ -82,28 +126,17 @@ Correct Examples:
 * Local File: `The Fate of Ophelia - Taylor Swift.mp3`
 * YouTube Input: Song Name: `The Fate of Ophelia` / Artist Name: `Taylor Swift`
 
-### 2. Process Startup and Timing (ArrowVortex)
+### 2. Process Startup and Timing
 
-Run the `menu.bat` file located in the project root.
-Then, press **1** to select a local file, or **paste a YouTube URL** (as described above).
+**Windows:** Run `menu.bat` from the project root, then press **1** to select a local file or **paste a YouTube URL**.
 
-**ArrowVortex** will open automatically, already configured with the "Beat tick" feature enabled and the **ADJUST TEMPO** and **ADJUST SYNC** windows open.
+ArrowVortex will open automatically. Use it to find the correct BPM and Downbeat, then save the `.sm` file with `Ctrl+S`. Press **ENTER** in the menu window to start generation.
 
-Proceed as follows:
-
-1. **Find the BPM:** In the "ADJUST SYNC" window, press the **Find BPM** button and then **Apply BPM**.
-2. **Verify:** Play the song by pressing the **Spacebar**. Listen for the detected BPM "beep" to make sure it is synchronized with the music.
-3. **Align the Downbeat:** Using the **Move first beat** function, position the correct *Downbeat* (the first strong beat of the measure). *This action is very useful for creating even more fun and rhythmically sensible charts.*
-4. **Variable BPM Management (Optional):** For complex songs (tempo changes, pauses, etc.), you can use the "ADJUST TEMPO" window (for details on how to do this, see the official ArrowVortex guide).
-5. **Save:** Once you've found the correct tempo, press **Ctrl+S** (or go to *File -> Save*) to save the .sm file in the `songs` folder, exactly where you placed the MP3.
-
-**Note:** Once you've saved the file with the correct tempo, you're done. **There's no need to create the arrows manually**; just save the blank file with the correct timing.
+**WSL:** Run `./menu.sh`, press **1**, and select your pre-timed `.sm` file. Generation starts immediately.
 
 ### 3. Generation
 
-Return to the `menu.bat` window (which you opened in step 2) and press **ENTER**.
-The system will automatically generate the steps for the difficulty levels (currently the most tested is *Medium*).
-The graphics/backgrounds will also be automatically searched for.
+The system automatically generates steps for Easy, Medium, and Hard difficulty levels. Background art is also searched and downloaded automatically.
 
 ### 4. Installation
 
@@ -115,14 +148,13 @@ Have fun!
 
 ## 🛠️ Other Functions
 
-Other options can be accessed from the `menu.bat`.
+Other options can be accessed from the menu (`menu.bat` on Windows, `menu.sh` on WSL).
 
 ### Option 2: Regenerate Chart
 
-This option regenerates only the steps, bypassing the ArrowVortex part.
+This option regenerates only the steps using cached analysis data, bypassing the timing step.
 
-* **When to use it:** It is useful **only** when changes have been made to the code logic (for example, following project updates).
-* If there are no code updates, it makes little sense to use it because it would regenerate exactly the same arrows as before.
+* **When to use it:** Useful when changes have been made to the generation code (e.g. after a project update).
 
 ### Option 3: Change Difficulty
 
