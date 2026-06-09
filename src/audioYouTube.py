@@ -28,7 +28,7 @@ def get_user_input(prompt):
 def get_ffmpeg_path():
     """
     Reads path.txt to find ffmpeg path.
-    Returns the directory containing ffmpeg.exe or the path itself if it's a dir.
+    Returns the directory containing ffmpeg (or ffmpeg.exe on Windows).
     """
     config_file = os.path.join(ROOT_DIR, "path.txt")
     if os.path.exists(config_file):
@@ -37,11 +37,12 @@ def get_ffmpeg_path():
                 for line in f:
                     line = line.strip().replace('"', '').replace("'", "")
                     if "ffmpeg" in line.lower():
-                        # If it points to executable, get dirname
-                        if line.lower().endswith("ffmpeg.exe"):
+                        # If it points to the executable itself, return the directory
+                        if line.lower().endswith("ffmpeg.exe") or line.lower().endswith("/ffmpeg"):
                             return os.path.dirname(line)
                         return line
-        except: pass
+        except:
+            pass
     return None
 
 def download_audio(url, output_path):
@@ -138,16 +139,11 @@ def main():
             print(f"\n❌ Error: Downloaded file not found: {downloaded_file}")
             return
 
-        # 2. Start "usual process" (Open in ArrowVortex)
-        # We assume open_in_arrowvortex.py is in the src directory (same as this script)
-        script_path = os.path.join(SCRIPT_DIR, "open_in_arrowvortex.py")
-        
-        if os.path.exists(script_path):
-            print("\nStarting ArrowVortex process...")
-            # Call with the new file path
-            subprocess.run([sys.executable, script_path, final_mp3_path])
-        else:
-            print(f"Error: {script_path} not found.")
+        # 2. Run the generation pipeline directly
+        print(f"\n✅ Audio downloaded. Now place a matching .sm file (with BPM/timing)")
+        print(f"   in the same folder: {song_folder}")
+        print(f"   Then run option 1 from the main menu to generate the chart.")
+        print(f"\n   Or run directly: python3 src/stepmania_generator.py")
 
     except Exception as e:
         print(f"\n❌ Error during process: {e}")

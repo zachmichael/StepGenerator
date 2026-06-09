@@ -1,1 +1,4 @@
-C:\APP\ArrowVortex\ArrowVortex.exe
+# Optional: FFmpeg path (directory containing ffmpeg or ffmpeg.exe)
+# On WSL, if ffmpeg is installed via: sudo apt install ffmpeg  <- leave this blank.
+# If using a Windows ffmpeg binary, specify the bin directory:
+# C:\ffmpeg\bin

@@ -212,10 +212,27 @@ def ensure_graphics(sm_path):
             artist_text = artist
             # Simple centered text
             try:
-                font_title = ImageFont.truetype("arial.ttf", 64)
-                font_artist = ImageFont.truetype("arial.ttf", 36)
+                # Try common font paths: Windows arial, Linux DejaVu/Liberation
+                _font_candidates = [
+                    "arial.ttf",
+                    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+                    "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+                ]
+                _font_file = None
+                for _f in _font_candidates:
+                    try:
+                        ImageFont.truetype(_f, 10)
+                        _font_file = _f
+                        break
+                    except Exception:
+                        pass
+                if _font_file:
+                    font_title = ImageFont.truetype(_font_file, 64)
+                    font_artist = ImageFont.truetype(_font_file, 36)
+                else:
+                    raise Exception("no font found")
             except:
-                from PIL import ImageFont
                 font_title = ImageFont.load_default()
                 font_artist = ImageFont.load_default()
             # Compute positions using textbbox (Pillow 10+)

@@ -4,14 +4,6 @@ import sys
 import time
 import glob
 
-# Try importing optional dependencies for automation
-try:
-    import pyautogui
-    import ctypes
-    AUTOMATION_AVAILABLE = True
-except ImportError:
-    AUTOMATION_AVAILABLE = False
-
 # Console Color Configuration
 class Colors:
     HEADER = '\033[95m'
@@ -34,13 +26,48 @@ if os.path.exists(CONFIG_FILE):
             for line in f:
                 raw_line = line.strip()
                 clean_line = raw_line.replace('"', '').replace("'", "")
-                
-                # Look for the ArrowVortex executable
                 if "arrowvortex" in clean_line.lower() and clean_line.lower().endswith(".exe"):
                     ARROW_VORTEX_PATH = clean_line
                     break
     except Exception:
         pass
+
+
+def to_windows_path(linux_path):
+    """Convert a Linux/WSL path to a Windows path using wslpath."""
+    try:
+        result = subprocess.run(
+            ["wslpath", "-w", linux_path],
+            capture_output=True, text=True, check=True
+        )
+        return result.stdout.strip()
+    except Exception:
+        return linux_path
+
+
+def resolve_av_path(raw_path):
+    """
+    Resolve ArrowVortex executable path.
+    In WSL, a Windows path like C:\\... can be mounted at /mnt/c/...
+    Try to convert it to the WSL mount equivalent so we can check existence,
+    but pass the original Windows path to the process.
+    """
+    if not raw_path:
+        return None, None
+
+    # If it's already a Linux path that exists, use it directly
+    if raw_path.startswith("/") and os.path.exists(raw_path):
+        return raw_path, raw_path
+
+    # Windows-style path: try to convert to WSL mount path for existence check
+    wsl_equivalent = raw_path
+    if len(raw_path) >= 2 and raw_path[1] == ":":
+        drive = raw_path[0].lower()
+        rest = raw_path[2:].replace("\\", "/")
+        wsl_equivalent = f"/mnt/{drive}{rest}"
+
+    return raw_path, wsl_equivalent
+
 
 def find_songs():
     """
@@ -49,67 +76,53 @@ def find_songs():
     """
     songs_dir = os.path.join(ROOT_DIR, "songs")
     if not os.path.exists(songs_dir):
-        # Fallback if structure is different
         songs_dir = os.path.join(os.getcwd(), "songs")
-        
+
     if not os.path.exists(songs_dir):
         return []
 
     found_songs = []
-    
-    # 1. Check root of songs/
+
     for file in os.listdir(songs_dir):
         if file.lower().endswith(".mp3"):
             full_path = os.path.join(songs_dir, file)
             sm_path = os.path.splitext(full_path)[0] + ".sm"
-            if not os.path.exists(sm_path): sm_path = None
-            found_songs.append({
-                'name': file,
-                'mp3_path': full_path,
-                'sm_path': sm_path
-            })
-            
-    # 2. Check subdirectories
+            if not os.path.exists(sm_path):
+                sm_path = None
+            found_songs.append({'name': file, 'mp3_path': full_path, 'sm_path': sm_path})
+
     for entry in os.scandir(songs_dir):
         if entry.is_dir():
-            # Look for mp3 inside
             mp3s = glob.glob(os.path.join(entry.path, "*.mp3"))
             for mp3 in mp3s:
                 sm_path = os.path.splitext(mp3)[0] + ".sm"
-                if not os.path.exists(sm_path): sm_path = None
-                
-                # Display name: "Folder - File.mp3" or just "File.mp3" if matches folder
+                if not os.path.exists(sm_path):
+                    sm_path = None
                 display_name = os.path.basename(mp3)
                 if entry.name != os.path.splitext(display_name)[0]:
-                     display_name = f"{entry.name} / {display_name}"
-                     
-                found_songs.append({
-                    'name': display_name,
-                    'mp3_path': mp3,
-                    'sm_path': sm_path
-                })
-    
+                    display_name = f"{entry.name} / {display_name}"
+                found_songs.append({'name': display_name, 'mp3_path': mp3, 'sm_path': sm_path})
+
     return found_songs
 
-def main():
-    if AUTOMATION_AVAILABLE:
-        try:
-            ctypes.windll.kernel32.SetConsoleTitleW("StepGenerator Helper Console")
-        except: pass
 
+def main():
     if not ARROW_VORTEX_PATH:
         print(f"\n{Colors.WARNING}⚠️  ARROWVORTEX PATH MISSING{Colors.ENDC}")
         print("To use this feature, you need to specify where ArrowVortex is located.")
         print(f"1. Open the {Colors.BOLD}path.txt{Colors.ENDC} file in the main folder.")
-        print("2. Paste the full path to the ArrowVortex executable.")
+        print("2. Paste the full Windows path to the ArrowVortex executable.")
         print("   (You can also add the FFmpeg path on a new line)")
-        print(f"\nExample of valid content:\n{Colors.BLUE}C:\\Program Files\\ArrowVortex\\ArrowVortex.exe\nC:\\ffmpeg\\bin{Colors.ENDC}")
+        print(f"\nExample for WSL:\n{Colors.BLUE}C:\\Program Files\\ArrowVortex\\ArrowVortex.exe\nC:\\ffmpeg\\bin{Colors.ENDC}")
         input("\nPress ENTER to go back to the menu...")
         return
 
-    if not os.path.exists(ARROW_VORTEX_PATH):
+    av_launch_path, av_check_path = resolve_av_path(ARROW_VORTEX_PATH)
+
+    if not os.path.exists(av_check_path):
         print(f"{Colors.FAIL}Error: ArrowVortex not found.{Colors.ENDC}")
         print(f"Path read: {ARROW_VORTEX_PATH}")
+        print(f"WSL check path: {av_check_path}")
         print("Check that the path in 'path.txt' is correct and exists.")
         input("\nPress ENTER to go back to the menu...")
         return
@@ -118,9 +131,9 @@ def main():
     if len(sys.argv) > 1:
         input_path = sys.argv[1]
         if not os.path.exists(input_path):
-            print(f"{Colors.FAIL}Errore: File non trovato: {input_path}{Colors.ENDC}")
+            print(f"{Colors.FAIL}Error: File not found: {input_path}{Colors.ENDC}")
             return
-            
+
         if input_path.lower().endswith(".mp3"):
             mp3_path = input_path
             sm_path = os.path.splitext(mp3_path)[0] + ".sm"
@@ -134,11 +147,11 @@ def main():
         else:
             print(f"{Colors.FAIL}Error: Unsupported file type.{Colors.ENDC}")
             return
-            
+
     # --- INTERACTIVE MODE ---
     else:
         songs = find_songs()
-        
+
         if not songs:
             print(f"{Colors.FAIL}No MP3 files found in the 'songs' folder (or subfolders).{Colors.ENDC}")
             input("\nPress ENTER to go back to the menu...")
@@ -146,127 +159,77 @@ def main():
 
         print(f"\n{Colors.HEADER}--- OPEN WITH ARROWVORTEX ---{Colors.ENDC}")
         print(f"{Colors.BLUE}Select a song to open or create:{Colors.ENDC}")
-        
+
         for i, song in enumerate(songs):
             status = " [Existing SM]" if song['sm_path'] else " [New]"
             print(f"{i+1}. {song['name']}{Colors.GREEN}{status}{Colors.ENDC}")
-            
+
         print("-" * 50)
         print("0. Cancel / Exit")
 
         try:
             choice_input = input(f"\n{Colors.BLUE}Enter number: {Colors.ENDC}")
             choice = int(choice_input)
-            
+
             if choice == 0:
                 return
-                
+
             if choice < 1 or choice > len(songs):
                 raise ValueError
-                
+
             selected = songs[choice - 1]
-            
-            # Decide what file to open
             target_file = selected['sm_path'] if selected['sm_path'] else selected['mp3_path']
             mp3_path = selected['mp3_path']
             sm_path_for_generation = selected['sm_path'] if selected['sm_path'] else os.path.splitext(mp3_path)[0] + ".sm"
-            
+
         except ValueError:
             print(f"{Colors.FAIL}Invalid choice.{Colors.ENDC}")
             return
 
-    # --- COMMON PROCESS ---
     # --- PRE-ANALYSIS AND GRAPHICS IN BACKGROUND ---
-    # Starts audio analysis and graphics generation in background while the user works
     print(f"\n{Colors.BLUE}🔄 Starting pre-analysis and graphics search in background...{Colors.ENDC}")
     try:
-        # Launch analyzer on the audio file (Generates analysis_data.json)
         audio_analyzer_path = os.path.join(SRC_DIR, "audio_analyzer.py")
         subprocess.Popen([sys.executable, audio_analyzer_path, mp3_path, "--pre-analyze"])
-             
-        # Launch add_grafic.py if images don't already exist (simple check)
+
         song_dir = os.path.dirname(mp3_path)
         if not (os.path.exists(os.path.join(song_dir, "BG.png")) and os.path.exists(os.path.join(song_dir, "BN.png"))):
-            # Pass the SM path (whether it exists or not, the script will try to search)
             add_grafic_path = os.path.join(SRC_DIR, "add_grafic.py")
             subprocess.Popen([sys.executable, add_grafic_path, sm_path_for_generation])
     except Exception as e:
         print(f"{Colors.WARNING}Unable to start background processes: {e}{Colors.ENDC}")
-    # ---------------------------------
 
+    # Convert target file path to Windows format for ArrowVortex
+    win_target = to_windows_path(os.path.abspath(target_file))
     print(f"Launching ArrowVortex: {os.path.basename(target_file)}")
-        
-    # Launch ArrowVortex
-    subprocess.Popen([ARROW_VORTEX_PATH, target_file])
-        
-    # Automation (Optional)
-    if AUTOMATION_AVAILABLE:
-        print(f"{Colors.BLUE}Waiting for interface to load for automation (if possible)...{Colors.ENDC}")
-        window = None
-        for _ in range(20): # 10 seconds timeout
-            try:
-                all_windows = pyautogui.getAllWindows()
-                for w in all_windows:
-                    if "ArrowVortex" in w.title and "StepGenerator" not in w.title:
-                        window = w
-                        break
-                if window: break
-            except: pass
-            time.sleep(0.5)
-                
-        if window:
-            try:
-                if not window.isActive: window.activate()
-                time.sleep(0.5)
-                if not window.isMaximized: window.maximize()
-                time.sleep(1.0) # Increased wait time after maximize
+    print(f"{Colors.BLUE}(Windows path: {win_target}){Colors.ENDC}")
 
-                # 1. Enable Beat Tick (F3)
-                print("Enabling Beat Tick (F3)...")
-                pyautogui.press('f3')
-                time.sleep(0.2)
+    subprocess.Popen([av_launch_path, win_target])
 
-                # 2. Send shortcut for Adjust Sync (Shift+S)
-                print("Opening Adjust Sync (Shift+S)...")
-                pyautogui.hotkey('shift', 's')
-                time.sleep(0.2)
+    # Window automation is not available in WSL — skip it and prompt manually
+    print("\n" + "="*60)
+    print(f"{Colors.BOLD}INSTRUCTIONS:{Colors.ENDC}")
+    print("1. ArrowVortex should open in Windows.")
+    print("   If it doesn't, open the file manually from Windows.")
+    print("2. Work on ArrowVortex (BPM, Offset, Notes).")
+    print("3. Save the file (Ctrl+S).")
+    print("4. Close ArrowVortex.")
+    print("="*60 + "\n")
 
-                # 3. Send shortcut for Adjust Tempo (Shift+T)
-                print("Opening Adjust Tempo (Shift+T)...")
-                pyautogui.hotkey('shift', 't')
-                    
-            except Exception as e:
-                    print(f"{Colors.WARNING}Window automation error: {e}{Colors.ENDC}")
-        
-        print("\n" + "="*60)
-        print(f"{Colors.BOLD}INSTRUCTIONS:{Colors.ENDC}")
-        print("1. Work on ArrowVortex (BPM, Offset, Notes).")
-        print("2. Save the file (Ctrl+S).")
-        print("3. Close ArrowVortex.")
-        print("="*60 + "\n")
-        
-        input(f"{Colors.BLUE}Press ENTER when done to START GENERATION (or Ctrl+C to exit)...{Colors.ENDC}")
-        
-        # Check if SM exists now
-        if os.path.exists(sm_path_for_generation):
-            print(f"\n{Colors.GREEN}.sm file detected. Starting Pipeline...{Colors.ENDC}")
-            try:
-                # Since analysis was started in background, we might want to skip it if already done.
-                # However, for safety, stepmania_generator should check if analysis_data.json exists and is valid.
-                # If background analysis is still running, stepmania_generator might need to wait or redo it.
-                # For now, we could add --skip-analysis if analysis_data.json already exists.
+    input(f"{Colors.BLUE}Press ENTER when done to START GENERATION (or Ctrl+C to exit)...{Colors.ENDC}")
 
-                stepmania_generator_path = os.path.join(SRC_DIR, "stepmania_generator.py")
-                cmd_pipeline = [sys.executable, stepmania_generator_path, "--from-sm", "--pipeline", sm_path_for_generation]
+    if os.path.exists(sm_path_for_generation):
+        print(f"\n{Colors.GREEN}.sm file detected. Starting Pipeline...{Colors.ENDC}")
+        try:
+            stepmania_generator_path = os.path.join(SRC_DIR, "stepmania_generator.py")
+            cmd_pipeline = [sys.executable, stepmania_generator_path, "--from-sm", "--pipeline", sm_path_for_generation]
+            subprocess.run(cmd_pipeline, check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"{Colors.FAIL}Pipeline error: {e}{Colors.ENDC}")
+    else:
+        print(f"{Colors.WARNING}.sm file not found. Generation cancelled.{Colors.ENDC}")
+        input("Press Enter...")
 
-                song_dir = os.path.dirname(mp3_path)
-                # Note: Removed --skip-analysis to force sync update (but using cached raw features)
-                subprocess.run(cmd_pipeline, check=True)
-            except subprocess.CalledProcessError as e:
-                 print(f"{Colors.FAIL}Pipeline error: {e}{Colors.ENDC}")
-        else:
-            print(f"{Colors.WARNING}.sm file not found. Generation cancelled.{Colors.ENDC}")
-            input("Press Enter...")
 
 if __name__ == "__main__":
     main()
